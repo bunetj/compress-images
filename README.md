@@ -1,51 +1,37 @@
-# compress media - simple scripts
+# compress images
 
-made w ai
+i hope it works.
 
+made for the case of hoarding - many similar or replaceable images - and limited cloud storage.
+
+see # rational compression below to not compress valuable stuff.
 
 ## dependencies
 
 - ffmpeg
 - magick
 
-
-## overview
-
-images: everyth below
-
-video: creates video_compressed
-
-audio: okay
-
-pdf: unfinished
-
-
-## images compression
+## commands
 
 ```
 -s n    files > n MB
 -r n    files > n * 1000 px in resolution
 -resize 50% by default
 -p n    resize by percent
--bit8
 -jpg
 -q  quality for jpg
 
 -replace    overwrites. otherwise backs up
 -recurse    looks in subfolders
-
--log    auto created on errors
 ```
 
-another thing is making a slideshow. options:
+another compression method is a slideshow. options:
 
 1. a video editor, eg shotcut
 
-2. screen recording a slideshow, eg: xnview > slideshow (can display specified metadata) + obs
+2. screen-recording a slideshow, eg: xnview > slideshow (can display specified metadata) + obs
 
 3. slideshow.ps1 (if same resolution)
-
-
 
 ## efficiency
 
@@ -53,25 +39,24 @@ jpg: a no-minder for useless images, up to 95%
 
 resize: for large images (>2-3k)
 
-bit8 (simplifies colors in png): up to 20%
+slideshow: somth. like 1gb to 200mb
 
 ## rational compression
 
-use commands to select only files optimal for compression. have backups.
+commands let you select only those files that are optimal for compression. make backups.
 
 find heavy images in the system, eg in everything app search `type:image size:>2mb`
 
 sizes.md shows optimal sizes
 
-avoid jpg compression for all and other compression for some of those:
+⚠⚠⚠ these types of images must not be compressed:
 
-- small/handwritten text, drawn lines (pixelates to less readable/fine)
-- transparent bg/elements (become colored)
-- fine or valuable images (pixelates shades and the image)
-- small resolution images (pixelates to lower quality)
+- small or handwritten text, drawn lines --> pixelated to less readable or fine
+- transparent background or elements - jpg -> colored
+- fine or valuable images -> pixelated shades and image
+- small resolution -> pixelated to lower quality
 
-
-## templates for commands
+## typical commands
 
 ```
 .\cmpr_IMGs.ps1 -jpg
@@ -88,4 +73,4 @@ avoid jpg compression for all and other compression for some of those:
 
 apps like caesium overload my computer.
 
-i didn't find scripts like this one quickly.
+i didn't search scripts like this and didn't find a similar script quickly.
