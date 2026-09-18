@@ -74,3 +74,7 @@ sizes.md shows optimal sizes
 apps like caesium overload my computer.
 
 i didn't search scripts like this and didn't find a similar script quickly.
+
+## other media
+
+video, audio, pdf. (not elaborated options.)
