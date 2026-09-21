@@ -45,7 +45,7 @@ slideshow: somth. like 1gb to 200mb
 
 commands let you select only those files that are optimal for compression. make backups.
 
-find heavy images in the system, eg in everything app search `type:image size:>2mb`
+find heavy images in the system, eg in everything app search `image: size:>2mb`
 
 sizes.md shows optimal sizes
 
