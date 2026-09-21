@@ -1,107 +1,119 @@
-# resize.ps1
 param(
-    [switch]$resize,
-    $p,
-    $s,
-    $r,
-    [switch]$bit8,
-    [switch]$jpg,
-    $q,
+    [int]$r = 0,
+    [int]$s = 0,
     [switch]$replace,
+    [switch]$jpg,
     [switch]$recurse,
-    [switch]$log,
-    [switch]$help
+    [switch]$resize
 )
 
-if($help -or $args[0] -eq '--help'){@'
--s n    select files > n MB
--r n    select files > n*1000 px in height/width (resolution)
--resize by 50% by default
--p n    by n %
--bit8
--jpg
--jpg -q
+Add-Type -AssemblyName System.Drawing
 
--replace        overwrites. otherwise puts in _compressed\ near
--recurse        looks in subfolders
-
--log    auto-created
-'@;exit}
-
-if(!$resize -and !$bit8 -and !$jpg){Write-Error "Need -resize, -bit8, or -jpg";exit}
-if($args[0] -match '^\d+$'){Write-Error "-resize <number> invalid";exit}
-
-$pct = if($p){$p}else{50}
-$qual = if($q){$q}else{85}
-if($log){$logFile = "errors.txt"; "" > $logFile; $ErrorActionPreference = "SilentlyContinue"}
-
-$files = @()
-if($recurse){
-    $files += Get-ChildItem -Recurse -Filter "*.jpg"
-    $files += Get-ChildItem -Recurse -Filter "*.jpeg"
-    $files += Get-ChildItem -Recurse -Filter "*.png"
-} else {
-    $files += Get-ChildItem -Filter "*.jpg"
-    $files += Get-ChildItem -Filter "*.jpeg"
-    $files += Get-ChildItem -Filter "*.png"
+$getParams = @{
+    Path = "."
+    File = $true
+}
+if ($recurse) {
+    $getParams.Recurse = $true
 }
 
-if($s){$files = $files | Where-Object {$_.Length / 1MB -gt $s}}
-if($r){
-    $dims = magick identify -format "%w %h" $files.FullName 2>$null
-    $i = 0
-    $files = $files | Where-Object {
-        $w,$h = $dims[$i++] -split ' '
-        [int]$w -gt ($r*1000) -or [int]$h -gt ($r*1000)
+$images = Get-ChildItem @getParams | Where-Object { $_.Extension -match '\.(jpg|jpeg|png|gif|bmp|tiff|webp|heic)$' }
+
+if ($r -gt 0) {
+    $images = $images | Where-Object { 
+        $img = [System.Drawing.Image]::FromFile($_.FullName)
+        $width = $img.Width
+        $height = $img.Height
+        $img.Dispose()
+        $width -gt ($r * 1000) -or $height -gt ($r * 1000)
     }
 }
 
-if(!$files){Write-Host "No files match";exit}
-
-if(!$replace){
-    $outDir = "..\$((Get-Location).Path.Split('\')[-1])_compressed"
-    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-    $total = $files.Count; $i = 0
-    foreach($f in $files){
-        try {
-            $outFile = "$outDir\$($f.Name)"
-            if($jpg -and $f.Extension -notin '.jpg','.jpeg'){$outFile = "$outDir\$($f.BaseName).jpg"}
-            if($resize){magick $f.FullName -resize "$pct%" $outFile}
-            if($bit8){magick $outFile -depth 8 $outFile}
-            if($jpg -and $f.Extension -notin '.jpg','.jpeg'){magick $f.FullName -quality $qual $outFile}
-        } catch {
-            $err = "[ERROR] $($f.FullName): $_"
-            if($log){$err >> $logFile}
-        }
-        $i++; Write-Progress -Activity "Processing" -Status " " -PercentComplete (($i/$total)*100)
-    }
-    if($log -and (Test-Path $logFile)){Write-Host "Errors logged to: $logFile"}
-    Write-Host "Done! Saved to: $outDir"
-    exit
+if ($s -gt 0) {
+    $images = $images | Where-Object { $_.Length -gt ($s * 1MB) }
 }
 
-$total = $files.Count; $i = 0
-foreach($f in $files){
-    try {
-        if($resize -or $bit8 -or $jpg){
-            $ext = $f.Extension
-            $outFile = $f.FullName
-            if($jpg -and $ext -notin '.jpg','.jpeg'){
-                $outFile = "$($f.Directory)\$($f.BaseName).jpg"
+if (-not $replace) {
+    $currentFolder = Get-Location
+    $compressedFolder = Join-Path -Path $currentFolder.Parent.FullName -ChildPath ($currentFolder.Name + "_compressed")
+    New-Item -ItemType Directory -Path $compressedFolder -Force | Out-Null
+}
+
+if ($resize) {
+    foreach ($image in $images) {
+        $img = [System.Drawing.Image]::FromFile($image.FullName)
+        
+        $newWidth = [int]($img.Width * 0.5)
+        $newHeight = [int]($img.Height * 0.5)
+        $thumbnail = new-object System.Drawing.Bitmap($newWidth, $newHeight)
+        $graphics = [System.Drawing.Graphics]::FromImage($thumbnail)
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.DrawImage($img, 0, 0, $newWidth, $newHeight)
+        
+        if ($replace) {
+            # Save to temp file first, then replace
+            $tempPath = [System.IO.Path]::GetTempFileName() + ".tmp"
+            if ($jpg) {
+                $thumbnail.Save($tempPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            } else {
+                # Determine format from extension
+                $ext = [System.IO.Path]::GetExtension($image.FullName).ToLower()
+                switch ($ext) {
+                    ".jpg" { $format = [System.Drawing.Imaging.ImageFormat]::Jpeg }
+                    ".jpeg" { $format = [System.Drawing.Imaging.ImageFormat]::Jpeg }
+                    ".png" { $format = [System.Drawing.Imaging.ImageFormat]::Png }
+                    ".gif" { $format = [System.Drawing.Imaging.ImageFormat]::Gif }
+                    ".bmp" { $format = [System.Drawing.Imaging.ImageFormat]::Bmp }
+                    ".tiff" { $format = [System.Drawing.Imaging.ImageFormat]::Tiff }
+                    default { $format = [System.Drawing.Imaging.ImageFormat]::Jpeg }
+                }
+                $thumbnail.Save($tempPath, $format)
             }
             
-            if($resize){magick $f.FullName -resize "$pct%" $outFile}
-            if($bit8){magick $outFile -depth 8 $outFile}
-            if($jpg -and $ext -notin '.jpg','.jpeg'){
-                magick $f.FullName -quality $qual $outFile
-                Remove-Item $f.FullName -Force
+            # Replace original with temp file
+            $img.Dispose()
+            $thumbnail.Dispose()
+            $graphics.Dispose()
+            Remove-Item $image.FullName -Force
+            Move-Item $tempPath $image.FullName -Force
+            continue
+        } else {
+            $relativePath = if ($recurse) {
+                $currentFolder = Get-Location
+                $relative = $image.Directory.FullName.Substring($currentFolder.FullName.Length + 1)
+                if ($relative) { $relative + "\" } else { "" }
+            } else { "" }
+            
+            $targetDir = Join-Path -Path $compressedFolder -ChildPath $relativePath
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+            
+            $outputName = if ($jpg) { 
+                [System.IO.Path]::ChangeExtension($image.Name, ".jpg") 
+            } else { 
+                $image.Name 
+            }
+            $outputPath = Join-Path -Path $targetDir -ChildPath $outputName
+            
+            if ($jpg) {
+                $thumbnail.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            } else {
+                # Determine format from extension
+                $ext = [System.IO.Path]::GetExtension($image.FullName).ToLower()
+                switch ($ext) {
+                    ".jpg" { $format = [System.Drawing.Imaging.ImageFormat]::Jpeg }
+                    ".jpeg" { $format = [System.Drawing.Imaging.ImageFormat]::Jpeg }
+                    ".png" { $format = [System.Drawing.Imaging.ImageFormat]::Png }
+                    ".gif" { $format = [System.Drawing.Imaging.ImageFormat]::Gif }
+                    ".bmp" { $format = [System.Drawing.Imaging.ImageFormat]::Bmp }
+                    ".tiff" { $format = [System.Drawing.Imaging.ImageFormat]::Tiff }
+                    default { $format = [System.Drawing.Imaging.ImageFormat]::Jpeg }
+                }
+                $thumbnail.Save($outputPath, $format)
             }
         }
-    } catch {
-        $err = "[ERROR] $($f.FullName): $_"
-        if($log){$err >> $logFile}
+        
+        $img.Dispose()
+        $thumbnail.Dispose()
+        $graphics.Dispose()
     }
-    $i++; Write-Progress -Activity "Processing" -Status " " -PercentComplete (($i/$total)*100)
 }
-if($log -and (Test-Path $logFile)){Write-Host "Errors logged to: $logFile"}
-Write-Host "Done!"
